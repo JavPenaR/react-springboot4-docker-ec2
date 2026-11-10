@@ -76,7 +76,7 @@ En la instancia:
 
 ```bash
 sudo dnf update -y
-sudo dnf install -y docker
+sudo dnf install -y docker git
 sudo systemctl enable --now docker
 sudo usermod -aG docker ec2-user
 ```
@@ -93,9 +93,15 @@ docker compose version
 
 Si el enlace `latest` no está disponible, consultar la [versión y la URL de instalación manual de Compose](https://docs.docker.com/compose/install/linux/) y sustituir `latest` por el número de versión indicado allí. Las instalaciones manuales no se actualizan automáticamente.
 
-## 5. Copiar el proyecto a EC2
+## 5. Obtener el proyecto en EC2
 
-Desde la **terminal local**, situarse en la carpeta que contiene `demo-ec2` y ejecutar:
+La forma más simple es clonar el repositorio público directamente en la instancia:
+
+```bash
+git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git demo-ec2
+```
+
+Si no se puede clonar desde la instancia, también se puede copiar la carpeta desde el computador local. Desde la **terminal local**, situarse en la carpeta que contiene `demo-ec2` y ejecutar:
 
 ```bash
 scp -i /ruta/mi-clave.pem -r demo-ec2 ec2-user@IP_PUBLICA:~/
@@ -132,7 +138,7 @@ docker compose logs --tail=100 frontend
 docker compose logs --tail=100 backend
 ```
 
-Para desplegar cambios, copiar de nuevo los archivos modificados a EC2 y ejecutar `docker compose up --build -d` desde `~/demo-ec2`. Para detener el laboratorio, ejecutar `docker compose down`. Para evitar cargos de EC2, detener o terminar la instancia desde AWS cuando termine la práctica; revisar también los cargos asociados a almacenamiento e IP pública.
+Para desplegar cambios si se usó `git clone`, ejecutar `git pull` y después `docker compose up --build -d` desde `~/demo-ec2`. Si se usó SCP, copiar de nuevo los archivos modificados y ejecutar `docker compose up --build -d`. Para detener el laboratorio, ejecutar `docker compose down`. Para evitar cargos de EC2, detener o terminar la instancia desde AWS cuando termine la práctica; revisar también los cargos asociados a almacenamiento e IP pública.
 
 ## Configuraciones que pueden cambiar
 
