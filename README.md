@@ -18,7 +18,7 @@ Este ejemplo usa Spring Boot 4.0.9, Java 21, React y Vite. La API no usa base de
 
 ## 2. Probar en el computador local
 
-Desde la carpeta `demo-ec2`:
+Desde la carpeta raíz del proyecto (la que contiene `compose.yaml`, cualquiera que sea su nombre):
 
 ```bash
 docker compose up --build -d
@@ -98,21 +98,24 @@ Si el enlace `latest` no está disponible, consultar la [versión y la URL de in
 La forma más simple es clonar el repositorio público directamente en la instancia:
 
 ```bash
-git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git demo-ec2
+cd ~
+git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git
 ```
 
-Si no se puede clonar desde la instancia, también se puede copiar la carpeta desde el computador local. Desde la **terminal local**, situarse en la carpeta que contiene `demo-ec2` y ejecutar:
+Así se crea la carpeta `react-springboot4-docker-ec2`. Para elegir otro nombre, agregarlo al final del comando: `git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git mi-proyecto`.
+
+Si no se puede clonar desde la instancia, también se puede copiar la carpeta desde el computador local. Desde la **terminal local**, situarse en la carpeta que contiene el proyecto y ejecutar (reemplazar `NOMBRE_CARPETA` por su nombre real):
 
 ```bash
-scp -i /ruta/mi-clave.pem -r demo-ec2 ec2-user@IP_PUBLICA:~/
+scp -i /ruta/mi-clave.pem -r ./NOMBRE_CARPETA ec2-user@IP_PUBLICA:~/
 ```
 
-En PowerShell, si la carpeta actual contiene `demo-ec2`, usar `scp -i C:\ruta\mi-clave.pem -r .\demo-ec2 ec2-user@IP_PUBLICA:~/`.
+En PowerShell, usar `scp -i C:\ruta\mi-clave.pem -r .\NOMBRE_CARPETA ec2-user@IP_PUBLICA:~/`.
 
-Volver a SSH y entrar en el proyecto:
+Volver a SSH y entrar en la carpeta real del proyecto. En los comandos siguientes, `NOMBRE_CARPETA` representa esa carpeta: por defecto `react-springboot4-docker-ec2` si se clonó sin indicar otro nombre, o el nombre elegido al clonar o copiar. Reemplazar el marcador antes de ejecutar:
 
 ```bash
-cd ~/demo-ec2
+cd ~/NOMBRE_CARPETA
 cp .env.example .env
 docker compose config
 ```
@@ -138,7 +141,7 @@ docker compose logs --tail=100 frontend
 docker compose logs --tail=100 backend
 ```
 
-Para desplegar cambios si se usó `git clone`, ejecutar `git pull` y después `docker compose up --build -d` desde `~/demo-ec2`. Si se usó SCP, copiar de nuevo los archivos modificados y ejecutar `docker compose up --build -d`. Para detener el laboratorio, ejecutar `docker compose down`. Para evitar cargos de EC2, detener o terminar la instancia desde AWS cuando termine la práctica; revisar también los cargos asociados a almacenamiento e IP pública.
+Para desplegar cambios si se usó `git clone`, ejecutar `git pull` y después `docker compose up --build -d` desde la carpeta raíz del proyecto. Si se usó SCP, copiar de nuevo los archivos modificados y ejecutar `docker compose up --build -d` en esa carpeta. Para detener el laboratorio, ejecutar `docker compose down`. Para evitar cargos de EC2, detener o terminar la instancia desde AWS cuando termine la práctica; revisar también los cargos asociados a almacenamiento e IP pública.
 
 ## Configuraciones que pueden cambiar
 
