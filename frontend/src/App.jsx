@@ -46,8 +46,8 @@ export default function App() {
 
   return <main className="card">
     <span className="eyebrow">Laboratorio de despliegue</span>
-    <h1>React + Spring Boot 4 en EC2</h1>
-    <p>Una aplicación mínima para comprobar que los dos contenedores se comunican.</p>
+    <h1>React local + Spring Boot 4 en EC2</h1>
+    <p>Comprueba que el frontend de tu computador se comunica con la API desplegada en EC2.</p>
     <section className="status">
       <div>
         <strong>Estado de la API</strong>

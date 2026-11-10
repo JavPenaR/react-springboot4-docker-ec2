@@ -1,78 +1,48 @@
-# Laboratorio: React + Spring Boot 4 con Docker en AWS EC2
+# Laboratorio: frontend React en Windows y backend Spring Boot 4 en EC2
 
-Aplicación de ejemplo con un formulario React que consulta `GET /api/estado` y envía `POST /api/saludos` a Spring Boot. Docker Compose levanta dos contenedores. Nginx entrega el frontend y redirige `/api/` al backend por la red interna de Docker.
+Cada estudiante ejecuta React en su computador con Vite. **Solo el backend se despliega en AWS EC2** mediante Docker Compose. El navegador llama directamente a la IP pública de EC2, por lo que el backend permite el origen local del frontend mediante CORS.
 
 ```text
-Navegador ── HTTP :80 ──> Nginx + React ── /api/* ──> Spring Boot :8080
-                            frontend                     backend
+PC Windows                                      AWS EC2 (Amazon Linux 2023)
+React + Vite en http://localhost:5173  ────>  Spring Boot 4 en http://IP_PUBLICA:8080/api
+             navegador                                  contenedor Docker
 ```
+
+Los bloques `powershell` se ejecutan en **Windows PowerShell** del estudiante. Los bloques `bash` se ejecutan **dentro de la instancia EC2 por SSH**. No hay que ejecutar `dnf`, `sudo` ni `chmod` en Windows.
 
 ## 1. Requisitos
 
-- Una cuenta AWS con permisos para crear una instancia EC2 y editar su grupo de seguridad.
-- Docker y Docker Compose para probar localmente. En EC2 se instalan en el paso 4.
-- Una clave `.pem` de EC2 guardada en el computador del estudiante.
-- Para compilar fuera de Docker, Java 21, Maven y Node.js 22.
+- Cuenta AWS, clave `.pem` y permisos para crear una EC2 y editar su grupo de seguridad.
+- En Windows: Node.js 22 con npm, Git y el cliente OpenSSH (`ssh` y `scp`). Windows 10/11 modernos incluyen el cliente OpenSSH; comprobar con `ssh -V`.
+- Docker se instala **en EC2**. Docker Desktop en Windows solo hace falta para la prueba local opcional.
+- **No hace falta instalar Maven.** El proyecto incluye Maven Wrapper (`backend/mvnw.cmd`), que descarga Maven 3.9.16 la primera vez. Para ejecutar el backend directamente en Windows sí hace falta Java 21. Para construirlo con Docker en EC2, Java y Maven vienen dentro de la imagen de compilación.
 
-Este ejemplo usa Spring Boot 4.0.9, Java 21, React y Vite. La API no usa base de datos: el saludo se devuelve directamente.
+Este ejemplo usa Spring Boot 4.0.9, Java 21, React y Vite. La API responde a `GET /api/estado` y `POST /api/saludos`; no utiliza base de datos.
 
-## 2. Probar en el computador local
-
-Desde la carpeta raíz del proyecto (la que contiene `compose.yaml`, cualquiera que sea su nombre):
-
-```bash
-docker compose up --build -d
-docker compose ps
-curl http://localhost/api/estado
-```
-
-Abrir `http://localhost` y enviar un saludo. Debe aparecer `estado: ok` en la respuesta JSON y el saludo en la página. Si el puerto 80 está ocupado, crear `.env` a partir de `.env.example`, cambiar `FRONTEND_PORT=8081` y abrir `http://localhost:8081`.
-
-Para detener:
-
-```bash
-docker compose down
-```
-
-### Desarrollo sin Docker
-
-En una terminal:
-
-```bash
-cd backend
-mvn spring-boot:run
-```
-
-En otra terminal, desde `frontend`:
-
-```bash
-npm install
-npm run dev
-```
-
-Abrir `http://localhost:5173`. Vite lee `frontend/.env.development` y llama a `http://localhost:8080/api`; Spring Boot permite ese origen mediante `CORS_ALLOWED_ORIGINS`. Es una petición entre orígenes distintos y sirve para demostrar CORS.
-
-## 3. Crear EC2
+## 2. Crear la instancia EC2
 
 1. En AWS Console, abrir **EC2 → Launch instance**.
-2. Elegir **Amazon Linux 2023** y arquitectura **x86_64**. Para construir las dos imágenes en la propia instancia, elegir una instancia con al menos **4 GiB de RAM** (por ejemplo `t3.medium`); comprobar el precio antes de lanzarla.
-3. Crear o seleccionar un par de claves y descargar el archivo `.pem`.
-4. En el grupo de seguridad, agregar entradas: **SSH/TCP 22** desde **My IP** y **HTTP/TCP 80** desde `0.0.0.0/0`. Si se usa IPv6, agregar HTTP desde `::/0`. No hace falta abrir 8080: el backend solo escucha dentro de la red Docker.
-5. Lanzar la instancia y esperar el estado **Running**. Anotar su **Public IPv4 address**. La IP pública puede cambiar al detener e iniciar la instancia; para una dirección estable, asociar una Elastic IP.
+2. Elegir **Amazon Linux 2023** y arquitectura **x86_64**. Para compilar la imagen Java en la instancia, elegir al menos **4 GiB de RAM** (por ejemplo `t3.medium`) y revisar su precio.
+3. Crear o seleccionar un par de claves y guardar el archivo `.pem` en Windows.
+4. En el grupo de seguridad, agregar estas reglas de entrada:
 
-> Si el sitio va a permanecer publicado, configurar dominio y HTTPS en un proxy o balanceador. Este laboratorio usa HTTP para simplificar la práctica.
+   | Tipo | Puerto | Origen |
+   | --- | --- | --- |
+   | SSH | TCP 22 | **My IP** |
+   | Custom TCP | 8080 | **My IP** del computador que abrirá el frontend |
 
-## 4. Instalar Docker y Compose en Amazon Linux 2023
+   Si varios computadores deben llamar a una sola API, agregar las IP públicas de esos computadores o el rango de la red del curso. Evitar `0.0.0.0/0` si no se necesita acceso desde todo Internet.
+5. Lanzar la instancia, esperar el estado **Running** y anotar su **Public IPv4 address**. La IP puede cambiar al detener e iniciar la instancia; si cambia, actualizar la URL del frontend.
 
-Conectar por SSH desde la terminal del computador local (reemplazar los valores):
+## 3. Conectar desde Windows e instalar Docker en EC2
 
-```bash
-ssh -i /ruta/mi-clave.pem ec2-user@IP_PUBLICA
+En **PowerShell de Windows**, reemplazar la ruta y la IP:
+
+```powershell
+ssh -i "C:\ruta\mi-clave.pem" ec2-user@IP_PUBLICA
 ```
 
-En Windows PowerShell la ruta puede ser `C:\ruta\mi-clave.pem`. En macOS/Linux, si SSH rechaza los permisos de la clave, ejecutar `chmod 400 /ruta/mi-clave.pem`.
-
-En la instancia:
+Desde este punto, la terminal SSH ejecuta comandos **Bash en Amazon Linux 2023**:
 
 ```bash
 sudo dnf update -y
@@ -81,7 +51,7 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker ec2-user
 ```
 
-Cerrar la sesión SSH y volver a entrar para que el grupo `docker` tenga efecto. Instalar el plugin Compose para el usuario `ec2-user`:
+Cerrar SSH con `exit` y conectarse de nuevo con el mismo comando de PowerShell para activar el grupo `docker`. En la **terminal SSH de EC2**, instalar el plugin Compose:
 
 ```bash
 mkdir -p ~/.docker/cli-plugins
@@ -91,96 +61,149 @@ docker --version
 docker compose version
 ```
 
-Si el enlace `latest` no está disponible, consultar la [versión y la URL de instalación manual de Compose](https://docs.docker.com/compose/install/linux/) y sustituir `latest` por el número de versión indicado allí. Las instalaciones manuales no se actualizan automáticamente.
+Aquí `curl` es el comando **Linux de EC2**, no el alias de PowerShell. La instalación manual del plugin no se actualiza automáticamente; consultar la [guía oficial de Docker Compose](https://docs.docker.com/compose/install/linux/) si el enlace `latest` cambia.
 
-## 5. Obtener el proyecto en EC2
+## 4. Obtener el código y desplegar solo el backend
 
-La forma más simple es clonar el repositorio público directamente en la instancia:
+En la **terminal SSH de EC2**:
 
 ```bash
 cd ~
 git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git
-```
-
-Así se crea la carpeta `react-springboot4-docker-ec2`. Para elegir otro nombre, agregarlo al final del comando: `git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git mi-proyecto`.
-
-Si no se puede clonar desde la instancia, también se puede copiar la carpeta desde el computador local. Desde la **terminal local**, situarse en la carpeta que contiene el proyecto y ejecutar (reemplazar `NOMBRE_CARPETA` por su nombre real):
-
-```bash
-scp -i /ruta/mi-clave.pem -r ./NOMBRE_CARPETA ec2-user@IP_PUBLICA:~/
-```
-
-En PowerShell, usar `scp -i C:\ruta\mi-clave.pem -r .\NOMBRE_CARPETA ec2-user@IP_PUBLICA:~/`.
-
-Volver a SSH y entrar en la carpeta real del proyecto. En los comandos siguientes, `NOMBRE_CARPETA` representa esa carpeta: por defecto `react-springboot4-docker-ec2` si se clonó sin indicar otro nombre, o el nombre elegido al clonar o copiar. Reemplazar el marcador antes de ejecutar:
-
-```bash
-cd ~/NOMBRE_CARPETA
+cd react-springboot4-docker-ec2
 cp .env.example .env
 docker compose config
-```
-
-`docker compose config` permite detectar errores de sintaxis antes de construir.
-
-## 6. Desplegar y verificar
-
-En la instancia:
-
-```bash
 docker compose up --build -d
 docker compose ps
-curl -i http://localhost/api/estado
+curl -i http://localhost:8080/api/estado
 ```
 
-La primera compilación descarga imágenes y dependencias, por lo que puede tardar varios minutos. Abrir `http://IP_PUBLICA` en el navegador. La página debe mostrar **Conectada**; enviar un saludo y comprobar la respuesta.
+El repositorio contiene código del frontend, pero `compose.yaml` **solo construye y ejecuta el servicio `backend`**. El frontend no se sirve desde EC2. La primera compilación puede tardar varios minutos.
 
-Para ver errores:
+La carpeta del proyecto no tiene que llamarse como el repositorio. Si se clona con `git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git mi-carpeta`, usar `cd mi-carpeta` en lugar del nombre anterior. Para los comandos posteriores, estar siempre en la carpeta que contiene `compose.yaml`.
+
+Para inspeccionar fallos en EC2:
 
 ```bash
-docker compose logs --tail=100 frontend
 docker compose logs --tail=100 backend
 ```
 
-Para desplegar cambios si se usó `git clone`, ejecutar `git pull` y después `docker compose up --build -d` desde la carpeta raíz del proyecto. Si se usó SCP, copiar de nuevo los archivos modificados y ejecutar `docker compose up --build -d` en esa carpeta. Para detener el laboratorio, ejecutar `docker compose down`. Para evitar cargos de EC2, detener o terminar la instancia desde AWS cuando termine la práctica; revisar también los cargos asociados a almacenamiento e IP pública.
+## 5. Ejecutar el frontend en Windows
 
-## Configuraciones que pueden cambiar
+En una **nueva terminal PowerShell local**, clonar el repositorio si todavía no está en el PC:
 
-| Archivo / variable | Valor de este ejemplo | Cuándo cambiarlo |
+```powershell
+git clone https://github.com/JavPenaR/react-springboot4-docker-ec2.git
+Set-Location .\react-springboot4-docker-ec2
+```
+
+Si ya está descargado o se clonó con otro nombre, abrir su carpeta raíz (la que contiene `compose.yaml`). Desde esa carpeta:
+
+```powershell
+Set-Location .\frontend
+Copy-Item .env.development.local.example .env.development.local
+notepad .env.development.local
+```
+
+En el Bloc de notas, reemplazar `IP_PUBLICA` por la IPv4 de EC2 y guardar. El archivo debe quedar así, con la IP real:
+
+```dotenv
+VITE_API_BASE_URL=http://IP_PUBLICA:8080/api
+```
+
+Continuar en la misma terminal PowerShell:
+
+```powershell
+npm ci
+npm run dev
+```
+
+Abrir `http://localhost:5173`. Vite usa siempre ese puerto en este proyecto; si está ocupado, se detiene para evitar una discrepancia con CORS. La página debe indicar **Conectada** y permitir enviar un saludo.
+
+El archivo `.env.development.local` es local para cada estudiante y está excluido de Git. **Reiniciar Vite** después de cambiarlo. Si cambia la IP pública de EC2, actualizar ese archivo.
+
+## 6. Verificar desde Windows PowerShell
+
+Para consultar la API sin depender del frontend, reemplazar `IP_PUBLICA`:
+
+```powershell
+Invoke-RestMethod -Uri "http://IP_PUBLICA:8080/api/estado"
+Invoke-RestMethod -Method Post -Uri "http://IP_PUBLICA:8080/api/saludos" -ContentType "application/json" -Body (@{ nombre = "Ana" } | ConvertTo-Json)
+```
+
+Para comprobar los encabezados CORS, usar **`curl.exe`** en PowerShell:
+
+```powershell
+curl.exe -i -H "Origin: http://localhost:5173" "http://IP_PUBLICA:8080/api/estado"
+curl.exe -i -X OPTIONS "http://IP_PUBLICA:8080/api/saludos" -H "Origin: http://localhost:5173" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type"
+```
+
+La respuesta debe incluir `Access-Control-Allow-Origin: http://localhost:5173`. **Sí, `curl.exe` funciona en Windows.** En Windows PowerShell 5.1, escribir solo `curl` invoca un alias de `Invoke-WebRequest`, que no acepta exactamente las mismas opciones; por eso los ejemplos usan `curl.exe`.
+
+## 7. Qué configuraciones cambiar
+
+| Archivo / variable | Valor inicial | Cuándo cambiarlo |
 | --- | --- | --- |
-| `frontend/.env.production` → `VITE_API_BASE_URL` | `/api` | Mantenerlo si React y API usan el mismo sitio y Nginx redirige `/api`. Si la API está en otro origen, poner su URL completa, por ejemplo `https://api.ejemplo.cl/api`, y reconstruir el frontend. |
-| `frontend/.env.development` → `VITE_API_BASE_URL` | `http://localhost:8080/api` | Cambiarlo si el backend local usa otro host o puerto; reiniciar Vite. |
-| `.env` → `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Si el navegador llama directamente a la API desde otro origen, escribir el origen exacto del frontend: esquema, host y puerto si corresponde, sin `/` final. Varios orígenes se separan con comas. Reiniciar el backend con `docker compose up -d --force-recreate backend`. |
-| `.env` → `FRONTEND_PORT` | `80` | Cambiarlo si el puerto público del host es otro; abrir ese puerto en el grupo de seguridad y usar `http://IP_PUBLICA:PUERTO`. |
-| `frontend/nginx.conf` → `proxy_pass` | `http://backend:8080` | Cambiarlo si cambia el nombre del servicio o el puerto interno del backend; reconstruir el frontend. |
-| `backend/src/main/resources/application.properties` → `server.port` | `8080` | Cambiarlo solo junto con `proxy_pass` y `EXPOSE` del Dockerfile. |
+| `frontend/.env.development.local` → `VITE_API_BASE_URL` | `http://IP_PUBLICA:8080/api` | Poner la IPv4 pública real de EC2. Cambiarla si la IP o el puerto de la API cambian. Reiniciar Vite. |
+| `.env` en EC2 → `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Mantenerlo mientras React se abra en `localhost:5173`. Si se abre desde otro origen, escribirlo completo, sin `/` final; varios orígenes separados por comas. Ejecutar `docker compose up -d --force-recreate backend`. |
+| `.env` en EC2 → `BACKEND_PORT` | `8080` | Cambiarlo si el host publica otro puerto; abrir ese puerto en el grupo de seguridad y ponerlo también en `VITE_API_BASE_URL`. |
+| `backend/src/main/resources/application.properties` → `server.port` | `8080` | Cambiarlo solo junto con el puerto interno de `compose.yaml` y `EXPOSE` del Dockerfile. |
 
-**Para este despliegue concreto en una sola EC2 no hay que reemplazar `localhost` por la IP pública dentro del frontend.** La compilación de producción usa `/api`, una ruta relativa del mismo origen. Nginx conoce al backend como `backend` por la red de Compose. CORS no interviene en esa llamada del navegador porque frontend y `/api` comparten origen; queda configurado para desarrollo y despliegues con orígenes separados. Si se usa una API en otro origen, esa API debe ser accesible desde el navegador y su servidor debe permitir el origen exacto del frontend. Una página HTTPS no debe llamar una API HTTP por contenido mixto.
+`frontend/.env.development` apunta a `http://localhost:8080/api` para la prueba opcional con un backend local. `frontend/.env.development.local` tiene prioridad y apunta a EC2. No usar `localhost` como host de la API cuando el backend está en EC2: en el navegador de cada estudiante, `localhost` es su propio PC.
 
-### Comprobar CORS
+## 8. Prueba local opcional en Windows
 
-Con los contenedores en marcha y el valor predeterminado de CORS:
+Si se quiere probar antes de usar AWS, con Docker Desktop iniciado, desde la raíz del proyecto en PowerShell:
 
-```bash
-curl -i -H "Origin: http://localhost:5173" http://localhost/api/estado
+```powershell
+docker compose up --build -d
+Invoke-RestMethod -Uri "http://localhost:8080/api/estado"
 ```
 
-La respuesta debe incluir `Access-Control-Allow-Origin: http://localhost:5173`. Para comprobar la solicitud previa de un `POST` JSON:
+Para que el frontend llame a este backend local, quitar temporalmente `frontend/.env.development.local` o cambiar allí la URL a `http://localhost:8080/api`, y reiniciar Vite. Para apagar el backend:
+
+```powershell
+docker compose down
+```
+
+También se puede ejecutar el backend **sin Docker y sin Maven instalado**, siempre que Java 21 esté instalado. Desde la raíz del proyecto en PowerShell:
+
+```powershell
+Set-Location .\backend
+.\mvnw.cmd spring-boot:run
+```
+
+Maven Wrapper descargará Maven en el primer uso. La instalación de Java se puede comprobar con `java -version`. En EC2 no hace falta ejecutar `mvnw`, porque el Dockerfile compila el backend dentro de una imagen que ya contiene Maven y Java.
+
+## 9. Actualizar y detener
+
+En la terminal SSH de EC2, dentro de la carpeta del proyecto:
 
 ```bash
-curl -i -X OPTIONS http://localhost/api/saludos -H "Origin: http://localhost:5173" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type"
+git pull
+docker compose up --build -d
 ```
+
+Para detener la API:
+
+```bash
+docker compose down
+```
+
+Detener o terminar la instancia desde AWS al acabar la práctica para evitar cargos. Revisar también los posibles cargos de almacenamiento e IP pública.
 
 ## Problemas frecuentes
 
-- **La página no abre:** revisar IP pública, regla de entrada HTTP 80, `docker compose ps` y que `FRONTEND_PORT=80`.
-- **Error 502:** el backend aún inicia o falló. Revisar `docker compose logs backend` y reintentar.
-- **Error CORS en desarrollo:** verificar que `VITE_API_BASE_URL` apunta al backend correcto y que `CORS_ALLOWED_ORIGINS` contiene exactamente `http://localhost:5173`. CORS no reemplaza la apertura de puertos ni corrige un host inaccesible.
-- **`permission denied` al usar Docker:** salir de SSH y entrar otra vez tras `usermod`.
-- **Compilación interrumpida:** revisar RAM disponible (`free -h`) y el tamaño de la instancia.
+- **La API no responde desde Windows:** comprobar la IPv4 pública, `docker compose ps`, los registros del backend y la regla de entrada TCP 8080 desde la IP pública del PC. `localhost:8080` en Windows no apunta a EC2.
+- **Error CORS en el navegador:** comprobar que Vite abre exactamente `http://localhost:5173` y que `CORS_ALLOWED_ORIGINS` coincide. CORS no corrige una IP o un puerto inaccesibles.
+- **`permission denied` al usar Docker en EC2:** salir de SSH y volver a entrar después de `usermod`.
+- **`mvnw.cmd` no descarga Maven:** revisar la conexión a Internet del PC y que Java 21 esté instalado. Para la ruta principal de la práctica no se necesita Maven en Windows.
+- **Compilación interrumpida en EC2:** revisar la RAM (`free -h`) y el tamaño de la instancia.
 
 ## Referencias oficiales
 
-- [Spring Boot 4: requisitos de sistema](https://docs.spring.io/spring-boot/4.0/system-requirements.html) y [starter Web MVC](https://docs.spring.io/spring-boot/4.0/reference/using/build-systems.html).
+- [Apache Maven Wrapper](https://maven.apache.org/tools/wrapper/index.html) y [Spring Boot 4: requisitos de sistema](https://docs.spring.io/spring-boot/4.0/system-requirements.html).
+- [Microsoft: curl en Windows](https://learn.microsoft.com/windows/curl/) y [Windows Terminal con SSH](https://learn.microsoft.com/windows/terminal/tutorials/ssh).
 - [AWS: instalar Docker en Amazon Linux 2023](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-docker.html).
 - [Docker: instalar el plugin Compose en Linux](https://docs.docker.com/compose/install/linux/).
 - [AWS: reglas de grupos de seguridad para EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html).
