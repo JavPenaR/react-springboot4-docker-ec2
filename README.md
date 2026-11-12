@@ -61,7 +61,23 @@ docker --version
 docker compose version
 ```
 
-Aquí `curl` es el comando **Linux de EC2**, no el alias de PowerShell. La instalación manual del plugin no se actualiza automáticamente; consultar la [guía oficial de Docker Compose](https://docs.docker.com/compose/install/linux/) si el enlace `latest` cambia.
+Instalar también **Docker Buildx** en EC2 antes de usar `docker compose up --build -d`. El nombre del binario publicado por Docker depende de la arquitectura de la instancia:
+
+```bash
+case "$(uname -m)" in
+  x86_64) buildx_arch=amd64 ;;
+  aarch64) buildx_arch=arm64 ;;
+  *) echo "Arquitectura no compatible: $(uname -m)"; exit 1 ;;
+esac
+
+curl -fL "https://github.com/docker/buildx/releases/download/v0.38.2/buildx-v0.38.2.linux-${buildx_arch}" -o /tmp/docker-buildx
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo install -m 755 /tmp/docker-buildx /usr/local/lib/docker/cli-plugins/docker-buildx
+sudo docker buildx version
+docker buildx version
+```
+
+Aquí `curl` es el comando **Linux de EC2**, no el alias de PowerShell. Las instalaciones manuales de Compose y Buildx no se actualizan automáticamente. Consultar la [guía oficial de Docker Compose](https://docs.docker.com/compose/install/linux/) si el enlace `latest` cambia; el binario de Buildx usado aquí corresponde a la [versión oficial v0.38.2](https://github.com/docker/buildx/releases/tag/v0.38.2).
 
 ## 4. Obtener el código y desplegar solo el backend
 
@@ -206,4 +222,5 @@ Detener o terminar la instancia desde AWS al acabar la práctica para evitar car
 - [Microsoft: curl en Windows](https://learn.microsoft.com/windows/curl/) y [Windows Terminal con SSH](https://learn.microsoft.com/windows/terminal/tutorials/ssh).
 - [AWS: instalar Docker en Amazon Linux 2023](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-docker.html).
 - [Docker: instalar el plugin Compose en Linux](https://docs.docker.com/compose/install/linux/).
+- [Docker Buildx: versión v0.38.2](https://github.com/docker/buildx/releases/tag/v0.38.2).
 - [AWS: reglas de grupos de seguridad para EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html).
