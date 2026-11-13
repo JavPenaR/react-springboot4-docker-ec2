@@ -1,6 +1,6 @@
 # Laboratorio: frontend React en Windows y backend Spring Boot 4 en EC2
 
-Cada estudiante ejecuta React en su computador con Vite. **Solo el backend se despliega en AWS EC2** mediante Docker Compose. El navegador llama directamente a la IP pública de EC2, por lo que el backend permite el origen local del frontend mediante CORS.
+Cada estudiante ejecuta React en su computador con Vite. **Solo el backend se despliega en AWS EC2** mediante Docker Compose. El navegador llama directamente a la IP pública de EC2. La API permite solicitudes CORS desde **cualquier origen**, no solo desde el frontend local.
 
 ```text
 PC Windows                                      AWS EC2 (Amazon Linux 2023)
@@ -134,7 +134,7 @@ npm ci
 npm run dev
 ```
 
-Abrir `http://localhost:5173`. Vite usa siempre ese puerto en este proyecto; si está ocupado, se detiene para evitar una discrepancia con CORS. La página debe indicar **Conectada** y permitir enviar un saludo.
+Abrir `http://localhost:5173`. Vite usa siempre ese puerto en este proyecto; si está ocupado, se detiene. La página debe indicar **Conectada** y permitir enviar un saludo.
 
 El archivo `.env.development.local` es local para cada estudiante y está excluido de Git. **Reiniciar Vite** después de cambiarlo. Si cambia la IP pública de EC2, actualizar ese archivo.
 
@@ -151,21 +151,23 @@ Para comprobar los encabezados CORS, usar **`curl.exe`** en PowerShell:
 
 ```powershell
 curl.exe -i -H "Origin: http://localhost:5173" "http://IP_PUBLICA:8080/api/estado"
-curl.exe -i -X OPTIONS "http://IP_PUBLICA:8080/api/saludos" -H "Origin: http://localhost:5173" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type"
+curl.exe -i -H "Origin: https://otro-ejemplo.com" "http://IP_PUBLICA:8080/api/estado"
+curl.exe -i -X OPTIONS "http://IP_PUBLICA:8080/api/saludos" -H "Origin: https://otro-ejemplo.com" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type"
 ```
 
-La respuesta debe incluir `Access-Control-Allow-Origin: http://localhost:5173`. **Sí, `curl.exe` funciona en Windows.** En Windows PowerShell 5.1, escribir solo `curl` invoca un alias de `Invoke-WebRequest`, que no acepta exactamente las mismas opciones; por eso los ejemplos usan `curl.exe`.
+Las respuestas CORS deben incluir `Access-Control-Allow-Origin: *`, independientemente del origen enviado. El ejemplo no habilita credenciales CORS. **Sí, `curl.exe` funciona en Windows.** En Windows PowerShell 5.1, escribir solo `curl` invoca un alias de `Invoke-WebRequest`, que no acepta exactamente las mismas opciones; por eso los ejemplos usan `curl.exe`.
 
 ## 7. Qué configuraciones cambiar
 
 | Archivo / variable | Valor inicial | Cuándo cambiarlo |
 | --- | --- | --- |
 | `frontend/.env.development.local` → `VITE_API_BASE_URL` | `http://IP_PUBLICA:8080/api` | Poner la IPv4 pública real de EC2. Cambiarla si la IP o el puerto de la API cambian. Reiniciar Vite. |
-| `.env` en EC2 → `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Mantenerlo mientras React se abra en `localhost:5173`. Si se abre desde otro origen, escribirlo completo, sin `/` final; varios orígenes separados por comas. Ejecutar `docker compose up -d --force-recreate backend`. |
 | `.env` en EC2 → `BACKEND_PORT` | `8080` | Cambiarlo si el host publica otro puerto; abrir ese puerto en el grupo de seguridad y ponerlo también en `VITE_API_BASE_URL`. |
 | `backend/src/main/resources/application.properties` → `server.port` | `8080` | Cambiarlo solo junto con el puerto interno de `compose.yaml` y `EXPOSE` del Dockerfile. |
 
 `frontend/.env.development` apunta a `http://localhost:8080/api` para la prueba opcional con un backend local. `frontend/.env.development.local` tiene prioridad y apunta a EC2. No usar `localhost` como host de la API cuando el backend está en EC2: en el navegador de cada estudiante, `localhost` es su propio PC.
+
+La configuración CORS está en `backend/src/main/java/cl/ejemplo/demo/CorsConfig.java` y permite cualquier origen solo para `/api/**`. No es necesario configurar dominios en `.env`. CORS no sustituye la autenticación ni las reglas de red de EC2.
 
 ## 8. Prueba local opcional en Windows
 
@@ -211,7 +213,7 @@ Detener o terminar la instancia desde AWS al acabar la práctica para evitar car
 ## Problemas frecuentes
 
 - **La API no responde desde Windows:** comprobar la IPv4 pública, `docker compose ps`, los registros del backend y la regla de entrada TCP 8080 desde la IP pública del PC. `localhost:8080` en Windows no apunta a EC2.
-- **Error CORS en el navegador:** comprobar que Vite abre exactamente `http://localhost:5173` y que `CORS_ALLOWED_ORIGINS` coincide. CORS no corrige una IP o un puerto inaccesibles.
+- **Error de conexión en el navegador:** comprobar la URL `VITE_API_BASE_URL`, la IP y el puerto público de EC2, y la regla de entrada TCP 8080. CORS no corrige una IP o un puerto inaccesibles.
 - **`permission denied` al usar Docker en EC2:** salir de SSH y volver a entrar después de `usermod`.
 - **`mvnw.cmd` no descarga Maven:** revisar la conexión a Internet del PC y que Java 21 esté instalado. Para la ruta principal de la práctica no se necesita Maven en Windows.
 - **Compilación interrumpida en EC2:** revisar la RAM (`free -h`) y el tamaño de la instancia.
